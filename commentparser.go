@@ -5,49 +5,95 @@ func formatString(content string) string {
 	rs := []rune(content)
 	rsnew := []rune{}
 
-	inmulti := false
-	insingle := false
-	insquo := false
-	indquo := false
+	inmulti := false  /* in multi-line comment flag */
+	insingle := false /* in single-line comment flag */
+	insquo := false   /* within single-quotes */
+	indquo := false   /* within double-quotes */
 
 	prev := rs[0] // first
 
-	for _, onechar := range rs {
+	for pos := 1; pos < len(rs); pos++ {
+		onechar := rs[pos]
+
 		switch onechar {
 		case '/':
-			if (prev == '/') && !(insquo || indquo) {
-				insingle = true
-			}
-			if (prev == '*') && !(insquo || indquo) {
-				inmulti = false
+			if insquo || indquo {
 
-				rsnew = append(rsnew, '\n')
+			} else {
+				if insingle {
+					// "// /" <== the last
+					rsnew = append(rsnew, onechar)
+				} else {
+					if prev == '/' {
+						insingle = true
+					} else {
+						// not comment
+					}
+				}
+				if inmulti {
+					if prev == '*' {
+						inmulti = false
+					} else {
+						// "arch/alpha/boot/bootpz.c" in multi-line comments
+						rsnew = append(rsnew, onechar)
+					}
+				} else {
+					// not comment
+				}
 			}
-			// "arch/alpha/boot/bootpz.c" in multi-line comments
-			if inmulti {
-				rsnew = append(rsnew, onechar)
-			}
+
 			break
 		case '*':
-			// "*" in multi-line comments
-			if inmulti {
-				rsnew = append(rsnew, onechar)
+			if insquo || indquo {
+				// within quotes, no oper
+			} else {
+				if insingle {
+					// "// *" <== the last
+					rsnew = append(rsnew, onechar)
+				} else if inmulti {
+					// "/* * **/"
+					var nextChar rune = 0
+					if pos < len(rs)-1 {
+						nextChar = rs[pos+1]
+					}
+
+					if nextChar == '/' {
+
+					} else {
+						rsnew = append(rsnew, onechar)
+					}
+				} else {
+					if prev == '/' {
+						inmulti = true
+					} else {
+						// not comment
+					}
+				}
 			}
 
-			if (prev == '/') && !(insquo || indquo) {
-				inmulti = true
+			if !(insquo || indquo) {
+				if prev == '/' {
+					inmulti = true
+				} else {
+
+				}
+			} else {
+				// within quotes, no oper
 			}
 
 			break
 		case '\n':
-			insingle = false
-			if insingle || inmulti {
+			if insingle {
+				insingle = false
+				rsnew = append(rsnew, onechar)
+			}
+			if inmulti {
 				rsnew = append(rsnew, onechar)
 			}
 			break
 		case '\'':
 			if insingle || inmulti {
-
+				// within comment
 			} else {
 				insquo = !insquo
 			}
